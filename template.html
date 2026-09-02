@@ -1,0 +1,670 @@
+<title>Not Crashing Comes First</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+/* Committed single-theme instrument panel: a light-mode telemetry display would
+   misrepresent the subject. Every colour is painted explicitly so the page holds
+   on either host ground. */
+:root{
+  --void:#06080b; --panel:#0b0f14; --panel2:#0e141b;
+  --line:#1a232e; --line2:#28374a;
+  --dim:#63788c; --text:#c3d2e0; --bright:#eaf2f8;
+  --ice:#6fe0cf; --ice-dk:#2b6f68;
+  --ember:#ff8f52; --violet:#9b8ce0; --crash:#ff5f6e; --solved:#ffd166;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --disp:'Saira Condensed','Arial Narrow',system-ui,sans-serif;
+  --sans:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--void); color:var(--text);
+  font-family:var(--sans); font-size:14px; line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+.shell{max-width:1320px;margin:0 auto;padding:28px 22px 60px}
+
+/* ---------- header ---------- */
+header{border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:22px}
+.eyebrow{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--ice-dk);display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:10px;
+}
+.eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--ice);flex:none}
+h1{
+  font-family:var(--disp);font-weight:800;text-transform:uppercase;
+  font-size:clamp(30px,5.4vw,58px);line-height:.94;letter-spacing:.005em;
+  margin:0;color:var(--bright);text-wrap:balance;
+}
+.sub{font-size:14.5px;color:var(--dim);margin:10px 0 0;max-width:62ch}
+.sub b{color:var(--text);font-weight:500}
+
+/* ---------- panels ---------- */
+.grid{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,1fr);gap:14px}
+@media (max-width:980px){.grid{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:3px;position:relative;overflow:hidden}
+.panel h2{
+  font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--dim);margin:0;padding:9px 12px;border-bottom:1px solid var(--line);
+  display:flex;justify-content:space-between;align-items:center;gap:10px;font-weight:500;
+}
+.panel h2 span{color:var(--ice-dk)}
+.cv{display:block;width:100%}
+#world{height:min(52vh,440px)}
+#net{height:min(52vh,440px)}
+#chart{height:190px}
+.mt{margin-top:14px}
+
+/* ---------- stat row ---------- */
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:3px;margin-top:14px;overflow:hidden}
+@media (max-width:720px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.stat{background:var(--panel);padding:12px 14px}
+.stat .k{font-family:var(--mono);font-size:9.5px;letter-spacing:.19em;text-transform:uppercase;color:var(--dim)}
+.stat .v{font-family:var(--mono);font-size:26px;font-weight:600;color:var(--bright);
+  font-variant-numeric:tabular-nums;line-height:1.25;margin-top:3px}
+.stat .n{font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:.06em}
+.v.pos{color:var(--ice)} .v.neg{color:var(--crash)}
+
+/* ---------- controls ---------- */
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px}
+button{
+  font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  background:var(--panel2);color:var(--text);border:1px solid var(--line2);
+  padding:8px 13px;border-radius:2px;cursor:pointer;transition:none;
+}
+button:hover{border-color:var(--ice-dk);color:var(--bright)}
+button:disabled{opacity:.4;cursor:default}
+button:disabled:hover{border-color:var(--line2);color:var(--text)}
+button:focus-visible{outline:2px solid var(--ice);outline-offset:2px}
+button.on{background:var(--ice);color:#04211d;border-color:var(--ice);font-weight:600}
+.seg{display:flex;border:1px solid var(--line2);border-radius:2px;overflow:hidden}
+.seg button{border:0;border-radius:0;border-right:1px solid var(--line2)}
+.seg button:last-child{border-right:0}
+.spacer{flex:1}
+
+/* ---------- drawer ---------- */
+.drawer{border:1px solid var(--line);border-radius:3px;margin-top:14px;background:var(--panel)}
+.drawer[hidden]{display:none}
+.dgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:1px;background:var(--line)}
+.f{background:var(--panel);padding:11px 13px}
+.f label{font-family:var(--mono);font-size:9.5px;letter-spacing:.17em;text-transform:uppercase;
+  color:var(--dim);display:flex;justify-content:space-between;gap:8px}
+.f label b{color:var(--ice);font-weight:500;font-variant-numeric:tabular-nums}
+.f input[type=range]{width:100%;margin:7px 0 0;accent-color:var(--ice);height:3px}
+.f .hint{font-family:var(--mono);font-size:9.5px;color:#41525f;letter-spacing:.04em}
+.f .tgl{width:100%;margin:7px 0 0;padding:5px 8px;font-size:10px;letter-spacing:.1em}
+.f input[type=range]:disabled{opacity:.35}
+.f.hatch label b{color:var(--ember)}
+.dnote{padding:10px 13px;border-top:1px solid var(--line);font-family:var(--mono);
+  font-size:10px;letter-spacing:.05em;color:var(--dim)}
+.dnote b{color:var(--ember);font-weight:500}
+
+/* ---------- footer ---------- */
+footer{margin-top:20px;padding-top:14px;border-top:1px solid var(--line);
+  font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:#42525f}
+footer div+div{margin-top:4px}
+.note{margin-top:26px;font-size:13.5px;color:var(--dim);max-width:74ch}
+.note h3{font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--ice-dk);margin:0 0 7px}
+.note p{margin:0 0 9px}
+.note em{color:var(--text);font-style:normal;border-bottom:1px solid var(--ice-dk)}
+.note code{font-family:var(--mono);font-size:12px;color:var(--text);background:var(--panel2);
+  padding:1px 5px;border-radius:2px}
+</style>
+
+<div class="shell">
+<header>
+  <div class="eyebrow"><span class="dot"></span><span id="status">Training</span><span>Gymnasium LunarLander-v3</span><span>REINFORCE + value baseline</span><span id="wcount">212 weights</span></div>
+  <h1>Not Crashing Comes First</h1>
+  <p class="sub">A neural network with <b>212 weights</b> learning to land on the moon from nothing — trained live in this page, with hand-written backpropagation and no ML library. Eight numbers in, four things it can do. Watch it discover that <b>hovering pays</b>.</p>
+</header>
+
+<div class="grid">
+  <div class="panel">
+    <h2>Lander <span id="wlab">episode 1</span></h2>
+    <canvas id="world" class="cv"></canvas>
+  </div>
+  <div class="panel">
+    <h2>Policy network <span id="nlab">8 · 16 · 4 tanh</span></h2>
+    <canvas id="net" class="cv"></canvas>
+  </div>
+</div>
+
+<div class="panel mt">
+  <h2>Return per episode <span id="clab">+200 = solved</span></h2>
+  <canvas id="chart" class="cv"></canvas>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="k">Episode</div><div class="v" id="s-ep">1</div><div class="n" id="s-upd">0 updates</div></div>
+  <div class="stat"><div class="k">This attempt</div><div class="v" id="s-cur">+0</div><div class="n" id="s-state">flying</div></div>
+  <div class="stat"><div class="k">Mean last 100</div><div class="v" id="s-m100">—</div><div class="n" id="s-best">best 50: —</div></div>
+  <div class="stat"><div class="k">Last 100 attempts</div><div class="v" id="s-rate">—</div><div class="n" id="s-mix">landed / crashed / hovered</div></div>
+</div>
+
+<div class="bar">
+  <button id="b-play" class="on">Pause</button>
+  <div class="seg" id="speed">
+    <button data-sp="watch">Watch</button>
+    <button data-sp="fast" class="on">Fast</button>
+    <button data-sp="turbo">Turbo</button>
+  </div>
+  <button id="b-best">★ Watch best</button>
+  <span class="spacer"></span>
+  <button id="b-params">⚙ Parameters</button>
+  <button id="b-reseed">🎲 Reseed</button>
+  <button id="b-reset">↺ Reset</button>
+</div>
+
+<div class="drawer" id="drawer" hidden>
+  <div class="dgrid" id="dgrid"></div>
+  <div class="dnote">Learning rate, discount, batch, entropy and leg strength apply immediately. Hidden width and seed restart training. <b>Orange</b> fields are deviations from stock LunarLander.</div>
+</div>
+
+<footer>
+  <div id="f1">REINFORCE + value baseline · 8-16-4 tanh policy · 212 weights · Adam, advantage normalised</div>
+  <div id="f2">LunarLander-v3 physics · 50 Hz · land between the flags for +100, crash for −100</div>
+</footer>
+
+<div class="note">
+  <h3>What you are watching</h3>
+  <p>Eight numbers describe the lander: where it is, how fast it is going, which way it is tilted, and whether each leg is touching. Four things it can do: fire the main engine, fire either side thruster, or nothing. Every weight starts random, and the only feedback is the score.</p>
+  <p>The first few hundred attempts all crash. Then it learns to slow its descent — and stops there. Landing is worth about <code>+260</code>; hovering until the 1,000-step clock runs out is worth around <code>+140</code>; crashing on a landing attempt is worth about <code>−40</code>. Hovering beats crashing, and the gap between hovering and landing is a few precisely-timed steps that random exploration almost never finds. So it hovers, forever.</p>
+  <p>The pad sits in the middle by default, as it does in stock LunarLander. You can move it, or have it jump somewhere new every episode. The network never learns <em>where</em> the pad is — the first input is its distance <em>from</em> the pad, so a policy trained on a centred pad follows a moved one immediately. Slide the pad while it is hovering and watch it chase.</p>
+  <p>That plateau is the default here because it is the honest result. Open <b>Parameters</b> and raise the hidden layer to <code>32</code> — landing goes from 0% to 87%. A time penalty of <code>0.20</code> does it too. The algorithm was never the problem; 212 weights sits just under the capacity it needs.</p>
+</div>
+</div>
+
+<script>
+/*__CORE__*/
+
+/* =============================================================================
+ * 7. Renderer + rAF driver
+ * ========================================================================== */
+const $ = id => document.getElementById(id);
+const CANVAS = {};
+function setupCanvas(id) {
+  const el = $(id), ctx = el.getContext('2d');
+  const fit = () => {
+    const r = el.getBoundingClientRect(), d = Math.min(window.devicePixelRatio || 1, 2);
+    el.width = Math.max(1, Math.round(r.width * d));
+    el.height = Math.max(1, Math.round(r.height * d));
+    ctx.setTransform(d, 0, 0, d, 0, 0);
+    CANVAS[id] = { el, ctx, w: r.width, h: r.height };
+  };
+  fit(); new ResizeObserver(fit).observe(el);
+  return () => CANVAS[id];
+}
+const cWorld = setupCanvas('world'), cNet = setupCanvas('net'), cChart = setupCanvas('chart');
+
+/* ---------- state ---------- */
+const cfg = { seed: 1 };
+let T = new Trainer(cfg);
+let playing = true, speed = 'fast', watchBest = false;
+let wEnv = null, wObs = null, wPol = null, wR = 0, wT = 0, wOutcome = -1, wAcc = 0;
+
+/* ---------- world ---------- */
+const COL = { crash: '#ff5f6e', land: '#6fe0cf', hover: '#9b8ce0' };
+function outColor(o) { return o === 1 ? COL.land : o === 0 ? COL.crash : COL.hover; }
+
+function drawWorld() {
+  const c = cWorld(); if (!c) return; const { ctx, w, h } = c;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#080b0f'; ctx.fillRect(0, 0, w, h);
+  const env = watchBest && wEnv ? wEnv : T.env;
+  const pad = 10, sc = Math.min((w - pad * 2) / W, (h - pad * 2) / H);
+  const offX = (w - W * sc) / 2, offY = (h - H * sc) / 2;
+  const X = x => offX + x * sc, Y = y => offY + (H - y) * sc;
+
+  // starfield (deterministic, cheap)
+  ctx.fillStyle = 'rgba(160,190,215,0.16)';
+  for (let i = 0; i < 60; i++) {
+    const sx = ((i * 2654435761) % 10000) / 10000 * w;
+    const sy = ((i * 40503) % 7919) / 7919 * h * 0.72;
+    ctx.fillRect(sx, sy, 1, 1);
+  }
+
+  // ghost trails
+  if (!watchBest) {
+    const g = T.ghost, cur = T.episode;
+    for (let s = 0; s < GHOST_SLOTS; s++) {
+      const n = g.len[s]; if (n < 2) continue;
+      const age = cur - g.meta[s * 3 + 2];
+      if (age < 0 || age > GHOST_SLOTS) continue;
+      const a = 0.30 * (1 - age / GHOST_SLOTS);
+      if (a <= 0.004) continue;
+      ctx.strokeStyle = outColor(g.meta[s * 3 + 1]);
+      ctx.globalAlpha = a; ctx.lineWidth = 1;
+      ctx.beginPath();
+      const b = s * GHOST_PTS * 3;
+      ctx.moveTo(X(g.xy[b]), Y(g.xy[b + 1]));
+      for (let i = 1; i < n; i++) ctx.lineTo(X(g.xy[b + 3 * i]), Y(g.xy[b + 3 * i + 1]));
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // terrain
+  ctx.beginPath(); ctx.moveTo(X(0), Y(env.smoothY[0]));
+  for (let i = 1; i < CHUNKS; i++) ctx.lineTo(X(env.chunkX[i]), Y(env.smoothY[i]));
+  ctx.lineTo(X(W), h); ctx.lineTo(X(0), h); ctx.closePath();
+  ctx.fillStyle = '#0d151c'; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(X(0), Y(env.smoothY[0]));
+  for (let i = 1; i < CHUNKS; i++) ctx.lineTo(X(env.chunkX[i]), Y(env.smoothY[i]));
+  ctx.strokeStyle = '#31465a'; ctx.lineWidth = 1; ctx.stroke();
+
+  // pad + flags
+  ctx.strokeStyle = '#6fe0cf'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(X(env.helipadX1), Y(HELIPAD_Y * 0.99)); ctx.lineTo(X(env.helipadX2), Y(HELIPAD_Y * 0.99)); ctx.stroke();
+  for (const fx of [env.helipadX1, env.helipadX2]) {
+    const bx = X(fx), by = Y(HELIPAD_Y * 0.99);
+    ctx.strokeStyle = '#3d8f85'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx, by - 1.15 * sc); ctx.stroke();
+    ctx.fillStyle = '#ffd166';
+    ctx.beginPath(); ctx.moveTo(bx, by - 1.15 * sc); ctx.lineTo(bx + 0.5 * sc, by - 0.95 * sc);
+    ctx.lineTo(bx, by - 0.75 * sc); ctx.closePath(); ctx.fill();
+  }
+
+  // lander
+  const or = env.origin(), th = env.theta, cth = Math.cos(th), sth = Math.sin(th);
+  const px = p => X(or[0] + p[0] * cth - p[1] * sth), py = p => Y(or[1] + p[0] * sth + p[1] * cth);
+  // legs
+  ctx.strokeStyle = '#8fa8bd'; ctx.lineWidth = 1.6;
+  for (let li = 0; li < 2; li++) {
+    const f = legFootLocal(li === 0 ? 1 : -1, env.phi[li]);
+    ctx.beginPath(); ctx.moveTo(px([0, 0]), py([0, 0])); ctx.lineTo(px(f), py(f));
+    ctx.strokeStyle = env.contact[li] ? '#6fe0cf' : '#8fa8bd'; ctx.stroke();
+  }
+  // thrust
+  const act = watchBest ? wAct : T.liveAction;
+  const flame = (base, dir, len, col) => {
+    ctx.fillStyle = col; ctx.globalAlpha = 0.55 + 0.45 * Math.random();
+    ctx.beginPath();
+    ctx.moveTo(px([base[0] - 0.10, base[1]]), py([base[0] - 0.10, base[1]]));
+    ctx.lineTo(px([base[0] + 0.10, base[1]]), py([base[0] + 0.10, base[1]]));
+    ctx.lineTo(px([base[0] + dir[0] * len, base[1] + dir[1] * len]), py([base[0] + dir[0] * len, base[1] + dir[1] * len]));
+    ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
+  };
+  if (act === 2) flame([0, -0.36], [0, -1], 0.75 + Math.random() * 0.3, '#ff8f52');
+  if (act === 1) flame([0.46, 0.05], [1, 0], 0.34, '#ffd166');
+  if (act === 3) flame([-0.46, 0.05], [-1, 0], 0.34, '#ffd166');
+  // hull
+  ctx.beginPath();
+  ctx.moveTo(px(LANDER_POLY[0]), py(LANDER_POLY[0]));
+  for (let i = 1; i < LANDER_POLY.length; i++) ctx.lineTo(px(LANDER_POLY[i]), py(LANDER_POLY[i]));
+  ctx.closePath();
+  ctx.fillStyle = '#123b3f'; ctx.fill();
+  ctx.strokeStyle = '#6fe0cf'; ctx.lineWidth = 1.4; ctx.stroke();
+
+  // gymnasium puts no ceiling on altitude, so the lander regularly climbs out of
+  // the 13.3 m viewport. Show where it went rather than silently losing it.
+  if (or[1] > H) {
+    const ix = Math.max(14, Math.min(w - 14, X(or[0])));
+    ctx.fillStyle = '#6fe0cf';
+    ctx.beginPath(); ctx.moveTo(ix, offY + 2); ctx.lineTo(ix - 5, offY + 11);
+    ctx.lineTo(ix + 5, offY + 11); ctx.closePath(); ctx.fill();
+    ctx.font = '500 9px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText((or[1] - H).toFixed(1) + ' m above frame', ix, offY + 15);
+    ctx.textAlign = 'left';
+  }
+
+  // legend
+  ctx.font = '500 9.5px "IBM Plex Mono", monospace'; ctx.textBaseline = 'middle';
+  const leg = [['landed', COL.land], ['crashed', COL.crash], ['hovered out', COL.hover]];
+  let lx = 10;
+  for (const [t, col] of leg) {
+    ctx.fillStyle = col; ctx.globalAlpha = 0.75; ctx.fillRect(lx, h - 13, 7, 1.5); ctx.globalAlpha = 1;
+    ctx.fillStyle = '#5d7182'; ctx.fillText(t, lx + 11, h - 12);
+    lx += 13 + ctx.measureText(t).width + 12;
+  }
+}
+
+/* ---------- policy network ---------- */
+const IN_LABELS = ['x', 'y', 'vx', 'vy', 'θ', 'ω', 'c1', 'c2'];
+const OUT_LABELS = ['idle', 'rcs →', 'main ▲', '← rcs'];
+function drawNet() {
+  const c = cNet(); if (!c) return; const { ctx, w, h } = c;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#080b0f'; ctx.fillRect(0, 0, w, h);
+  const pol = T.pol, hn = pol.hn;
+  const obs = watchBest ? wObs : T.liveObs, p = watchBest ? wP : T.liveP;
+  const padT = 20, padB = 20;
+  const xIn = 44, xH = w * 0.5, xOut = w - 74;
+  const yOf = (i, n) => padT + (h - padT - padB) * (n === 1 ? 0.5 : i / (n - 1));
+
+  let mx1 = 1e-6, mx2 = 1e-6;
+  for (let i = 0; i < pol.W1.length; i++) mx1 = Math.max(mx1, Math.abs(pol.W1[i]));
+  for (let i = 0; i < pol.W2.length; i++) mx2 = Math.max(mx2, Math.abs(pol.W2[i]));
+  const thin = hn > 32;
+
+  ctx.lineWidth = thin ? 0.5 : 0.7;
+  for (let k = 0; k < hn; k++) {
+    const yk = yOf(k, hn);
+    for (let i = 0; i < NIN; i++) {
+      const wv = pol.W1[k * NIN + i], a = Math.abs(wv) / mx1;
+      if (a < (thin ? 0.22 : 0.06)) continue;
+      ctx.strokeStyle = wv >= 0 ? '#6fe0cf' : '#ff8f52';
+      ctx.globalAlpha = Math.min(0.5, a * 0.5);
+      ctx.beginPath(); ctx.moveTo(xIn, yOf(i, NIN)); ctx.lineTo(xH, yk); ctx.stroke();
+    }
+    for (let j = 0; j < NOUT; j++) {
+      const wv = pol.W2[j * hn + k], a = Math.abs(wv) / mx2;
+      if (a < (thin ? 0.22 : 0.06)) continue;
+      ctx.strokeStyle = wv >= 0 ? '#6fe0cf' : '#ff8f52';
+      ctx.globalAlpha = Math.min(0.6, a * 0.6);
+      ctx.beginPath(); ctx.moveTo(xH, yk); ctx.lineTo(xOut, yOf(j, NOUT)); ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.font = '500 10px "IBM Plex Mono", monospace'; ctx.textBaseline = 'middle';
+  // inputs
+  for (let i = 0; i < NIN; i++) {
+    const y = yOf(i, NIN), v = obs[i] || 0, m = Math.max(-1, Math.min(1, v));
+    ctx.beginPath(); ctx.arc(xIn, y, 4.2, 0, 6.2832);
+    ctx.fillStyle = m >= 0 ? '#6fe0cf' : '#ff8f52';
+    ctx.globalAlpha = 0.22 + 0.78 * Math.abs(m); ctx.fill(); ctx.globalAlpha = 1;
+    ctx.fillStyle = '#7d93a6'; ctx.textAlign = 'right';
+    ctx.fillText(IN_LABELS[i], xIn - 10, y);
+    ctx.fillStyle = '#435566'; ctx.font = '400 9px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'left'; ctx.fillText(v.toFixed(2), xIn + 9, y);
+    ctx.font = '500 10px "IBM Plex Mono", monospace';
+  }
+  // hidden
+  for (let k = 0; k < hn; k++) {
+    const y = yOf(k, hn), a = pol.h[k] || 0;
+    ctx.beginPath(); ctx.arc(xH, y, hn > 32 ? 2.4 : 3.6, 0, 6.2832);
+    ctx.fillStyle = a >= 0 ? '#6fe0cf' : '#ff8f52';
+    ctx.globalAlpha = 0.18 + 0.82 * Math.min(1, Math.abs(a)); ctx.fill(); ctx.globalAlpha = 1;
+  }
+  // outputs
+  for (let j = 0; j < NOUT; j++) {
+    const y = yOf(j, NOUT), pv = p[j] || 0;
+    ctx.beginPath(); ctx.arc(xOut, y, 5, 0, 6.2832);
+    ctx.fillStyle = '#6fe0cf'; ctx.globalAlpha = 0.15 + 0.85 * pv; ctx.fill(); ctx.globalAlpha = 1;
+    ctx.strokeStyle = '#2b6f68'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.textAlign = 'left';
+    ctx.fillStyle = (watchBest ? wAct : T.liveAction) === j ? '#eaf2f8' : '#7d93a6';
+    ctx.fillText(OUT_LABELS[j], xOut + 11, y - 6);
+    ctx.fillStyle = '#435566'; ctx.font = '400 9px "IBM Plex Mono", monospace';
+    ctx.fillText((pv * 100).toFixed(0) + '%', xOut + 11, y + 6);
+    ctx.font = '500 10px "IBM Plex Mono", monospace';
+    ctx.fillStyle = '#6fe0cf'; ctx.globalAlpha = 0.5;
+    ctx.fillRect(xOut + 34, y + 3, Math.max(0, pv) * 32, 4); ctx.globalAlpha = 1;
+  }
+  ctx.textAlign = 'left'; ctx.fillStyle = '#3a4a58'; ctx.font = '400 9px "IBM Plex Mono", monospace';
+  ctx.fillText('positive weight', 10, h - 20);
+  ctx.fillStyle = '#6fe0cf'; ctx.fillRect(10, h - 13, 26, 1.5);
+  ctx.fillStyle = '#3a4a58'; ctx.fillText('negative', 46, h - 20);
+  ctx.fillStyle = '#ff8f52'; ctx.fillRect(46, h - 13, 26, 1.5);
+}
+
+/* ---------- return chart ---------- */
+function drawChart() {
+  const c = cChart(); if (!c) return; const { ctx, w, h } = c;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#080b0f'; ctx.fillRect(0, 0, w, h);
+  const g = T.ghost, n = g.n;
+  const L = 46, R = 12, Tp = 12, B = 20;
+  const lo = -420, hi = 320;
+  const Y = v => Tp + (hi - Math.max(lo, Math.min(hi, v))) / (hi - lo) * (h - Tp - B);
+
+  ctx.font = '400 9px "IBM Plex Mono", monospace'; ctx.textBaseline = 'middle';
+  for (const gv of [-400, -200, 0, 200]) {
+    ctx.strokeStyle = gv === 0 ? '#22303d' : '#141d26'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(L, Y(gv)); ctx.lineTo(w - R, Y(gv)); ctx.stroke();
+    ctx.fillStyle = '#41525f'; ctx.textAlign = 'right';
+    ctx.fillText((gv > 0 ? '+' : '') + gv, L - 7, Y(gv));
+  }
+  // solved line
+  ctx.setLineDash([3, 3]); ctx.strokeStyle = '#ffd166'; ctx.globalAlpha = 0.45;
+  ctx.beginPath(); ctx.moveTo(L, Y(200)); ctx.lineTo(w - R, Y(200)); ctx.stroke();
+  ctx.setLineDash([]); ctx.globalAlpha = 1;
+
+  if (n < 2) { ctx.fillStyle = '#41525f'; ctx.textAlign = 'left'; ctx.fillText('collecting…', L + 4, Tp + 12); return; }
+
+  // Drawn from the full-history aggregator, not the recent-episode ring, so the
+  // curve still shows episode 1 after the ring has wrapped many times over.
+  const HB = T.ghost.hist, bins = HB.bins;
+  const X = i => L + ((i + 0.5) / bins) * (w - L - R);
+
+  // per-bin min/max band
+  ctx.strokeStyle = '#2e6b8f'; ctx.globalAlpha = 0.45;
+  ctx.lineWidth = Math.max(1, (w - L - R) / bins);
+  ctx.beginPath();
+  for (let i = 0; i < bins; i++) {
+    if (!HB.cnt[i]) continue;
+    ctx.moveTo(X(i), Y(HB.mn[i])); ctx.lineTo(X(i), Y(HB.mx[i]));
+  }
+  ctx.stroke(); ctx.globalAlpha = 1;
+
+  // mean, smoothed over roughly 100 episodes regardless of current bin size
+  const winB = Math.max(1, Math.round(100 / HB.binSize));
+  ctx.strokeStyle = '#6fe0cf'; ctx.lineWidth = 1.6; ctx.beginPath();
+  let started = false;
+  for (let i = 0; i < bins; i++) {
+    let s = 0, cn = 0;
+    for (let k = Math.max(0, i - winB + 1); k <= i; k++) { s += HB.sum[k]; cn += HB.cnt[k]; }
+    if (!cn) continue;
+    const y = Y(s / cn), x = X(i);
+    if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  ctx.fillStyle = '#41525f'; ctx.textAlign = 'left';
+  ctx.fillText('episode 1', L + 2, h - 9);
+  ctx.textAlign = 'right'; ctx.fillText(n.toLocaleString(), w - R, h - 9);
+  ctx.fillStyle = '#8a7442'; ctx.textAlign = 'right'; ctx.fillText('+200 solved', w - R - 2, Y(200) - 8);
+}
+
+/* ---------- controls ---------- */
+const FIELDS = [
+  { k: 'lrPolicy', l: 'policy lr', min: 1e-4, max: 1e-2, step: 1e-4, fmt: v => v.toExponential(1) },
+  { k: 'lrValue', l: 'value lr', min: 1e-4, max: 2e-2, step: 1e-4, fmt: v => v.toExponential(1) },
+  { k: 'gamma', l: 'discount γ', min: 0.9, max: 0.9999, step: 0.0005, fmt: v => v.toFixed(4) },
+  { k: 'batch', l: 'episodes / update', min: 1, max: 32, step: 1, fmt: v => String(v) },
+  { k: 'entropy0', l: 'entropy β₀', min: 0, max: 0.1, step: 0.001, fmt: v => v.toFixed(3) },
+  { k: 'fLeg', l: 'leg strength N', min: 30, max: 150, step: 1, fmt: v => v.toFixed(0), hint: 'crashes above ~2.2 m/s' },
+  { k: 'stiffLegs', l: 'leg struts', type: 'toggle', off: 'bend & collapse', on: 'rigid, never bend',
+    hatch: true, hint: 'rigid survives ~10 m/s' },
+  { k: 'startRandom', l: 'start position', type: 'toggle', off: 'top centre (stock)', on: 'random each episode',
+    hatch: true, hint: 'x 2.4-17.6 m, y 10-13.3 m' },
+  { k: 'hidden', l: 'hidden width', min: 8, max: 96, step: 8, fmt: v => String(v), restart: true, hint: 'restarts · 32+ lands' },
+  { k: 'padChunk', l: 'landing pad', min: 2, max: 8, step: 1, hint: 'takes effect next episode',
+    fmt: v => v === 5 ? 'centred (stock)' : 'x = ' + (2 * v) + ' m' },
+  { k: 'padRandom', l: 'pad placement', type: 'toggle', off: 'fixed', on: 'moves each episode',
+    hatch: true, hint: 'policy only sees pad-relative x' },
+  { k: 'timePenalty', l: 'time penalty / step', min: 0, max: 0.5, step: 0.01, fmt: v => v.toFixed(2), hatch: true, hint: '0.20 breaks the plateau' },
+  { k: 'truncPenalty', l: 'hover penalty', min: 0, max: 100, step: 5, fmt: v => v.toFixed(0), hatch: true },
+];
+function buildDrawer() {
+  const gd = $('dgrid'); gd.innerHTML = '';
+  for (const f of FIELDS) {
+    const d = document.createElement('div');
+    d.className = 'f' + (f.hatch ? ' hatch' : '');
+    if (f.type === 'toggle') {
+      d.innerHTML = `<label>${f.l}<b id="v-${f.k}"></b></label>
+        <button class="tgl" id="f-${f.k}"></button>
+        <div class="hint">${f.hint || ''}</div>`;
+      gd.appendChild(d);
+      const btn = d.querySelector('button'), out = d.querySelector('b');
+      f._sync = () => {
+        const on = !!+T.cfg[f.k];
+        btn.textContent = on ? f.on : f.off;
+        btn.classList.toggle('on', on);
+        out.textContent = on ? 'on' : 'off';
+      };
+      btn.addEventListener('click', () => {
+        T.cfg[f.k] = +T.cfg[f.k] ? 0 : 1; syncAll();
+      });
+      f._sync();
+      continue;
+    }
+    d.innerHTML = `<label for="f-${f.k}">${f.l}<b id="v-${f.k}"></b></label>
+      <input type="range" id="f-${f.k}" min="${f.min}" max="${f.max}" step="${f.step}">
+      <div class="hint">${f.hint || ''}</div>`;
+    gd.appendChild(d);
+    const inp = d.querySelector('input'), out = d.querySelector('b');
+    const sync = () => { inp.value = T.cfg[f.k]; out.textContent = f.fmt(+T.cfg[f.k]); };
+    inp.addEventListener('input', () => {
+      const v = +inp.value; out.textContent = f.fmt(v);
+      if (!f.restart) { T.cfg[f.k] = v; updateFooter(); }
+    });
+    // restart-fields wait for release, so dragging doesn't rebuild the net per step
+    if (f.restart) inp.addEventListener('change', () => {
+      const c = Object.assign({}, T.cfg); c[f.k] = +inp.value;
+      T = new Trainer(c); watchBest = false;
+      $('b-best').classList.remove('on'); syncAll();
+    });
+    f._sync = sync; sync();
+  }
+}
+function syncAll() {
+  for (const f of FIELDS) if (f._sync) f._sync();
+  const pc = $('f-padChunk'); if (pc) pc.disabled = !!+T.cfg.padRandom;
+  const fl = $('f-fLeg'); if (fl) fl.disabled = !!+T.cfg.stiffLegs;
+  updateFooter();
+}
+function updateFooter() {
+  const hn = T.cfg.hidden, np = hn * NIN + hn + NOUT * hn + NOUT;
+  $('f1').textContent = `REINFORCE + value baseline · 8-${hn}-4 tanh policy · ${np} weights · Adam, advantage normalised`;
+  $('wcount').textContent = `${np} weights`;
+  $('nlab').textContent = `8 · ${hn} · 4 tanh`;
+  const dev = [];
+  if (+T.cfg.timePenalty) dev.push(`time penalty ${(+T.cfg.timePenalty).toFixed(2)}`);
+  if (+T.cfg.truncPenalty) dev.push(`hover penalty ${(+T.cfg.truncPenalty).toFixed(0)}`);
+  if (+T.cfg.stiffLegs) dev.push('rigid legs');
+  if (+T.cfg.startRandom) dev.push('random start');
+  if (+T.cfg.padRandom) dev.push('pad moves each episode');
+  else if (+T.cfg.padChunk !== 5) dev.push(`pad off-centre at x=${2 * +T.cfg.padChunk} m`);
+  $('f2').textContent = 'LunarLander-v3 physics · 50 Hz · land between the flags for +100, crash for −100'
+    + (dev.length ? ' · NON-STANDARD: ' + dev.join(', ') : '');
+}
+
+$('b-play').addEventListener('click', () => {
+  playing = !playing; $('b-play').textContent = playing ? 'Pause' : 'Resume';
+  $('b-play').classList.toggle('on', playing);
+});
+$('speed').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  speed = b.dataset.sp;
+  for (const x of $('speed').children) x.classList.toggle('on', x === b);
+});
+$('b-params').addEventListener('click', () => {
+  const d = $('drawer'); d.hidden = !d.hidden; $('b-params').classList.toggle('on', !d.hidden);
+});
+$('b-reset').addEventListener('click', () => { T = new Trainer(Object.assign({}, T.cfg)); watchBest = false; $('b-best').classList.remove('on'); syncAll(); });
+$('b-reseed').addEventListener('click', () => {
+  const c = Object.assign({}, T.cfg); c.seed = (Math.random() * 1e9) | 0;
+  T = new Trainer(c); watchBest = false; $('b-best').classList.remove('on'); syncAll();
+});
+$('b-best').addEventListener('click', () => {
+  if (!T.bestWeights && !usableSaved()) return;
+  watchBest = !watchBest; $('b-best').classList.toggle('on', watchBest);
+  if (watchBest) startWatch(); else wEnv = null;
+});
+
+/* ---------- "watch best" rollout ---------- */
+let wAct = 0, wP = new Float64Array(NOUT), wRng = null;
+function startWatch() {
+  wRng = new RNG((Math.random() * 1e9) | 0);
+  wPol = new PolicyNet(T.cfg.hidden, new RNG(1));
+  const sv = usableSaved();
+  const src = T.bestWeights || (sv ? sv.w.map(a => Float64Array.from(a)) : null);
+  if (!src) { watchBest = false; return; }
+  const dst = wPol.tensors();
+  for (let i = 0; i < dst.length; i++) dst[i].set(src[i]);
+  wEnv = new LunarEnv(wRng, T.cfg);
+  wObs = wEnv.observe(); wR = 0; wT = 0; wOutcome = -1; wAcc = 0;
+}
+function watchStep() {
+  if (!wEnv) return;
+  wPol.forward(wObs); for (let i = 0; i < NOUT; i++) wP[i] = wPol.p[i];
+  wAct = wPol.sample(wRng);
+  const r = wEnv.step(wAct);
+  wObs = r.obs; wR += r.rawReward; wT++;
+  if (r.terminated || wT >= 1000) { wOutcome = r.terminated ? r.outcome : 2; startWatch(); }
+}
+
+/* ---------- saved best policy (survives reload) ---------- */
+const LS_KEY = 'not-crashing-comes-first/best';
+let lastSave = 0, savedBest = null;
+try {
+  const raw = localStorage.getItem(LS_KEY);
+  if (raw) { const o = JSON.parse(raw); if (o && o.w && o.w.length === 4) savedBest = o; }
+} catch (e) { savedBest = null; }
+function maybeSaveBest() {
+  if (!T.bestWeights || watchBest) return;
+  const now = performance.now();
+  if (now - lastSave < 4000) return;
+  lastSave = now;
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      h: T.cfg.hidden, r: T.bestReturn, ep: T.episode,
+      w: T.bestWeights.map(a => Array.from(a)),
+    }));
+  } catch (e) { /* private window, quota, or a context that blocks storage */ }
+}
+// Only reusable when the architecture matches the net currently on screen.
+function usableSaved() {
+  return savedBest && savedBest.h === T.cfg.hidden ? savedBest : null;
+}
+
+/* ---------- HUD ---------- */
+const fmtS = v => (v >= 0 ? '+' : '') + v.toFixed(0);
+function updateHUD() {
+  const g = T.ghost, n = g.n;
+  $('s-ep').textContent = (watchBest ? '★' : T.episode.toLocaleString());
+  $('s-upd').textContent = watchBest ? 'replaying best policy' : `${T.updates.toLocaleString()} updates · β ${T.beta.toFixed(3)}`;
+  const cur = watchBest ? wR : (T.cur ? T.cur.R : 0);
+  const ce = $('s-cur'); ce.textContent = fmtS(cur);
+  ce.className = 'v ' + (cur >= 0 ? 'pos' : 'neg');
+  const st = watchBest ? wEnv : T.env;
+  $('s-state').textContent = st && (st.contact[0] || st.contact[1]) ? 'touching down' : 'flying';
+  if (n >= 5) {
+    const m = T.meanRecent(100), me = $('s-m100');
+    me.textContent = fmtS(m); me.className = 'v ' + (m >= 0 ? 'pos' : 'neg');
+    $('s-best').textContent = T.best50 > -Infinity ? `best 50-window: ${fmtS(T.best50)}` : 'best 50: —';
+    let l = 0, cr = 0, hv = 0, k = Math.min(100, n);
+    for (let i = n - k; i < n; i++) { const o = g.outcome[i % CURVE_CAP]; if (o === 1) l++; else if (o === 0) cr++; else hv++; }
+    const rate = 100 * l / k;
+    const re = $('s-rate'); re.textContent = rate.toFixed(0) + '%';
+    re.className = 'v ' + (rate > 0 ? 'pos' : '');
+    $('s-mix').textContent = `${l} landed · ${cr} crashed · ${hv} hovered out`;
+  }
+  $('wlab').textContent = watchBest ? 'best policy so far' : `episode ${T.episode.toLocaleString()}`;
+  $('status').textContent = watchBest ? 'Replaying best' : (playing ? 'Training' : 'Paused');
+  $('clab').textContent = T.bestReturn > -Infinity ? `best single episode ${fmtS(T.bestReturn)}` : '+200 = solved';
+}
+
+/* ---------- driver ---------- */
+let last = performance.now(), acc = 0, frame = 0;
+function loop(now) {
+  const dt = Math.min(100, now - last); last = now;
+  if (playing) {
+    if (watchBest) {
+      wAcc += dt * 0.05;                       // 50 Hz
+      let k = Math.floor(wAcc); wAcc -= k;
+      while (k-- > 0) watchStep();
+    } else if (speed === 'watch') {
+      acc += dt * 0.05;
+      let k = Math.floor(acc); acc -= k;
+      T.tick(12, k);
+    } else {
+      T.tick(speed === 'turbo' ? 13 : 4);
+    }
+  }
+  frame++;
+  maybeSaveBest();
+  $('b-best').disabled = !T.bestWeights && !usableSaved();
+  const heavy = speed === 'turbo' && !watchBest;
+  drawWorld();
+  if (!heavy || frame % 3 === 0) drawNet();
+  if (!heavy || frame % 6 === 0) drawChart();
+  updateHUD();
+  requestAnimationFrame(loop);
+}
+buildDrawer(); updateFooter(); requestAnimationFrame(loop);
+</script>

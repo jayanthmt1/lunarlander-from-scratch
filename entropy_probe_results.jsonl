@@ -1,0 +1,23 @@
+{"type":"escape","name":"HL=500  min=0.001","seed":3,"escape":12078}
+{"type":"escape","name":"HL=500  min=0.001","seed":2,"escape":12596}
+{"type":"escape","name":"HL=2000 min=0.001*","seed":3,"escape":13434}
+{"type":"escape","name":"HL=2000 min=0.001*","seed":1,"escape":13520}
+{"type":"escape","name":"HL=500  min=0.001","seed":1,"escape":13685}
+{"type":"escape","name":"HL=2000 min=0.001*","seed":2,"escape":15198}
+{"type":"final","name":"HL=500  min=0.001","seed":3,"entropyHalfLife":500,"entropyMin":0.001,"escape":12078,"finalLand":92,"finalMean":256.5,"trace":[0,0,0,0,0,37,84,88,87,89,87,87,85,88,91,90,91,93,92,93],"secs":227}
+{"type":"final","name":"HL=500  min=0.001","seed":2,"entropyHalfLife":500,"entropyMin":0.001,"escape":12596,"finalLand":91.3,"finalMean":255.7,"trace":[0,0,0,0,0,1,87,86,90,80,90,90,86,91,89,91,86,84,90,92],"secs":234}
+{"type":"final","name":"HL=2000 min=0.001*","seed":3,"entropyHalfLife":2000,"entropyMin":0.001,"escape":13434,"finalLand":92.2,"finalMean":256.9,"trace":[0,0,0,0,0,0,87,87,88,89,89,89,90,87,90,90,90,93,90,92],"secs":238}
+{"type":"final","name":"HL=2000 min=0.001*","seed":1,"entropyHalfLife":2000,"entropyMin":0.001,"escape":13520,"finalLand":91,"finalMean":254.1,"trace":[0,0,0,0,0,0,89,86,88,87,86,85,92,90,88,92,95,93,91,94],"secs":241}
+{"type":"final","name":"HL=500  min=0.001","seed":1,"entropyHalfLife":500,"entropyMin":0.001,"escape":13685,"finalLand":92.2,"finalMean":257.8,"trace":[0,0,0,0,0,0,80,91,87,90,91,85,85,88,91,89,93,92,87,92],"secs":248}
+{"type":"final","name":"HL=2000 min=0.001*","seed":2,"entropyHalfLife":2000,"entropyMin":0.001,"escape":15198,"finalLand":91.3,"finalMean":254,"trace":[0,0,0,0,0,0,0,86,85,91,83,84,84,89,87,90,87,89,89,90],"secs":255}
+{"type":"escape","name":"HL=8000 min=0.001","seed":3,"escape":22015}
+{"type":"final","name":"HL=8000 min=0.001","seed":3,"entropyHalfLife":8000,"entropyMin":0.001,"escape":22015,"finalLand":92.7,"finalMean":258,"trace":[0,0,0,0,0,0,0,0,0,0,47,85,83,87,87,89,91,90,92,95],"secs":295}
+{"type":"escape","name":"HL=8000 min=0.001","seed":2,"escape":26407}
+{"type":"escape","name":"HL=8000 min=0.001","seed":1,"escape":28425}
+{"type":"final","name":"HL=8000 min=0.001","seed":2,"entropyHalfLife":8000,"entropyMin":0.001,"escape":26407,"finalLand":91.3,"finalMean":255,"trace":[0,0,0,0,0,0,0,0,0,0,0,0,3,84,90,89,90,90,87,89],"secs":321}
+{"type":"final","name":"HL=8000 min=0.001","seed":1,"entropyHalfLife":8000,"entropyMin":0.001,"escape":28425,"finalLand":89.1,"finalMean":249.6,"trace":[0,0,0,0,0,0,0,0,0,0,0,0,0,2,89,93,90,89,91,89],"secs":335}
+{"type":"final","name":"HL=2000 min=0.02","seed":2,"entropyHalfLife":2000,"entropyMin":0.02,"escape":-1,"finalLand":0,"finalMean":134.2,"trace":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"secs":383}
+{"type":"final","name":"HL=2000 min=0.02","seed":3,"entropyHalfLife":2000,"entropyMin":0.02,"escape":-1,"finalLand":0,"finalMean":126.8,"trace":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"secs":388}
+{"type":"final","name":"HL=2000 min=0.02","seed":1,"entropyHalfLife":2000,"entropyMin":0.02,"escape":-1,"finalLand":0,"finalMean":131.2,"trace":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"secs":389}
+{"type":"escape","name":"beta=0 (no bonus)","seed":1,"escape":10488}
+{"type":"escape","name":"beta=0 (no bonus)","seed":2,"escape":10667}
