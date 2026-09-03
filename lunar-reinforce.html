@@ -118,9 +118,9 @@ footer div+div{margin-top:4px}
 
 <div class="shell">
 <header>
-  <div class="eyebrow"><span class="dot"></span><span id="status">Training</span><span>Gymnasium LunarLander-v3</span><span>REINFORCE + value baseline</span><span id="wcount">212 weights</span></div>
+  <div class="eyebrow"><span class="dot"></span><span id="status">Training</span><span>Gymnasium LunarLander-v3</span><span>REINFORCE + value baseline</span><span id="wcount">836 weights</span></div>
   <h1>Not Crashing Comes First</h1>
-  <p class="sub">A neural network with <b>212 weights</b> learning to land on the moon from nothing — trained live in this page, with hand-written backpropagation and no ML library. Eight numbers in, four things it can do. Watch it discover that <b>hovering pays</b>.</p>
+  <p class="sub">A neural network learning to land on the moon from nothing — trained live in this page, with hand-written backpropagation and no ML library. Eight numbers in, four things it can do. It crashes, discovers that <b>hovering pays</b>, stalls there for thousands of attempts, then breaks through and lands <b>99% of the time</b>.</p>
 </header>
 
 <div class="grid">
@@ -165,8 +165,8 @@ footer div+div{margin-top:4px}
 <div class="drawer" id="drawer" hidden>
   <div class="presets">
     <span class="plab">Preset</span>
-    <button id="p-faithful" class="on">Faithful — 212 weights, hovers</button>
-    <button id="p-solve">Solve — 836 weights, ~99% landing</button>
+    <button id="p-faithful">Faithful — 212 weights, hovers forever</button>
+    <button id="p-solve" class="on">Solve — 836 weights, ~99% landing</button>
   </div>
   <div class="dgrid" id="dgrid"></div>
   <div class="dnote">Learning rate, discount, batch, entropy and leg strength apply immediately. Hidden width and seed restart training. <b>Orange</b> fields are deviations from stock LunarLander.</div>
@@ -180,9 +180,9 @@ footer div+div{margin-top:4px}
 <div class="note">
   <h3>What you are watching</h3>
   <p>Eight numbers describe the lander: where it is, how fast it is going, which way it is tilted, and whether each leg is touching. Four things it can do: fire the main engine, fire either side thruster, or nothing. Every weight starts random, and the only feedback is the score.</p>
-  <p>The first few hundred attempts all crash. Then it learns to slow its descent — and stops there. Landing is worth about <code>+260</code>; hovering until the 1,000-step clock runs out is worth around <code>+140</code>; crashing on a landing attempt is worth about <code>−40</code>. Hovering beats crashing, and the gap between hovering and landing is a few precisely-timed steps that random exploration almost never finds. So it hovers, forever.</p>
-  <p>The pad sits in the middle by default, as it does in stock LunarLander. You can move it, or have it jump somewhere new every episode. The network never learns <em>where</em> the pad is — the first input is its distance <em>from</em> the pad, so a policy trained on a centred pad follows a moved one immediately. Slide the pad while it is hovering and watch it chase.</p>
-  <p>That plateau is the default here because it is the honest result. Open <b>Parameters</b> and raise the hidden layer to <code>32</code> — landing goes from 0% to 87%. A time penalty of <code>0.20</code> does it too. The algorithm was never the problem; 212 weights sits just under the capacity it needs.</p>
+  <p>The first few hundred attempts all crash. Then it learns to slow its descent — and stops there, because landing is worth about <code>+260</code> but hovering until the 1,000-step clock runs out is worth around <code>+140</code>, while crashing on a landing attempt is worth about <code>−40</code>. Hovering beats crashing, and the gap between hovering and landing is a few precisely-timed steps that random exploration rarely finds. So it hovers, for thousands of episodes.</p>
+  <p>Around episode 7,000 it breaks out. Press <b>✓ Evaluate</b> once the curve is above the dashed line to measure it properly: that runs fresh episodes using the <em>greedy</em> policy — always the highest-probability action, no exploration noise — which is what a deployed controller would do. Expect ~99%.</p>
+  <p>Switch to the <b>Faithful</b> preset to see the version that never escapes. It is the same algorithm with 212 weights instead of 836, and it hovers indefinitely. Curiously, its <em>sampled</em> accuracy is just as good — it is only when you remove the exploration noise that the small network falls apart, because it was never sharp enough to run deterministically.</p>
 </div>
 </div>
 
@@ -960,7 +960,10 @@ function setupCanvas(id) {
 const cWorld = setupCanvas('world'), cNet = setupCanvas('net'), cChart = setupCanvas('chart');
 
 /* ---------- state ---------- */
-const cfg = { seed: 1 };
+// The page opens on Solve. core.js DEFAULTS deliberately stay the faithful
+// 212-weight baseline, so every gate script and recorded experiment still
+// reproduces against the same numbers.
+const cfg = Object.assign({}, PRESETS.solve, { seed: 1 });
 let T = new Trainer(cfg);
 let playing = true, speed = 'fast', watchBest = false;
 let wEnv = null, wObs = null, wPol = null, wR = 0, wT = 0, wOutcome = -1, wAcc = 0;
