@@ -201,6 +201,11 @@ intuition**:
 | 32 | 420 | 91.3% | 97.2% |
 | 64 | 836 | 88.0% | **99.3%** |
 
+Those figures are single 1,000-episode measurements at one checkpoint. Greedy accuracy
+**oscillates over training between roughly 91% and 99.9% rather than converging** — vanilla
+REINFORCE has nothing that stabilises a policy once it is good, so the shipped weights are a
+selected checkpoint, not an endpoint. See the README for the checkpoint table.
+
 Sampled accuracy is flat across every width. Greedy accuracy climbs steeply. At H = 16 going
 deterministic actively *loses* accuracy — the policy is too soft to run without noise, and
 sampling occasionally rescues states it handles badly. **The extra weights do not buy a better
@@ -218,7 +223,7 @@ stochastic policy; they buy one sharp enough to deploy.**
 | entropy β₀ | 0.02, halving every 2000 eps, floor 0.001 | **0** |
 | gradient clip | 1.0 global L2 | 1.0 |
 | reward scale | 0.01 | 0.01 |
-| outcome | hovers indefinitely | ~99% landing (greedy) |
+| outcome | hovers indefinitely | **99.50% landing, 0.03% crash** (greedy, 5k checkpoint, 4000 episodes) |
 
 γ = 0.995 rather than 0.99 for a concrete reason: at γ = 0.99 a +100 landing bonus 500 steps in
 the future is worth `100 × 0.99⁵⁰⁰ = 0.66` — effectively invisible from altitude. At 0.995 it is

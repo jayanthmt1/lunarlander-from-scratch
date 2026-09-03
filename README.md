@@ -50,7 +50,7 @@ including the entropy term `∂H/∂z = −p(lp + H)`.
 | preset | network | what it does |
 |---|---|---|
 | **Faithful** *(default)* | 8-16-4, **212 weights** | reproduces the hovering plateau — the story the page tells |
-| **Solve** | 8-64-4, **836 weights** | **99.3-99.6% landing**, mean return ~+268 |
+| **Solve** | 8-64-4, **836 weights** | **99.50% landing**, 0.03% crash (see caveat below) |
 
 `Solve` is `entropy0 = 0`, `lrPolicy = 4e-3`, hidden 64. It is a *different, larger*
 network — the "212 weights" headline belongs to the faithful default only.
@@ -71,6 +71,35 @@ in a way that inverts the usual intuition:
 | 64 | 836 | 92.7% | **99.4%** | +266 |
 
 *(1,000 fresh evaluation episodes each, after 30k training episodes)*
+
+### Caveat: greedy accuracy oscillates, it does not converge
+
+Those are single measurements at one checkpoint. Tracking the same run over training shows the
+greedy landing rate wandering rather than settling:
+
+```
+5k:99.8%  10k:99.0%  15k:96.6%  20k:98.4%  25k:98.6%
+30k:99.2%  35k:91.2%  40k:98.0%  45k:97.8%  50k:99.2%
+```
+
+Vanilla REINFORCE has no mechanism to stabilise a converged policy — the gradient keeps pushing.
+**Training longer does not monotonically help**, and where you stop determines what you get.
+
+There is also a real accuracy/efficiency trade-off between checkpoints. Head to head on the same
+4,000 fresh episodes:
+
+| checkpoint | landing on pad | crash | mean return |
+|---|---|---|---|
+| **5k** *(shipped)* | **99.50%** | **0.03%** | +195.8 |
+| 50k | 97.35% | 1.32% | +271.9 |
+
+The early policy lands almost every time but burns roughly 3x the fuel; the late one flies
+efficiently and crashes ~40x more often. `weights-solve.json` ships the 5k checkpoint because the
+goal was landing accuracy — return only breaks ties.
+
+A caution worth recording: picking the best of eight checkpoints on a 1,500-episode sample gave
+99.13%, which fell to 98.35% on 4,000 fresh episodes. That gap is selection-on-noise, not a real
+difference. Every headline number here is from a sample the selection never saw.
 
 Sampled accuracy is flat across every width (~88-92%). Greedy accuracy climbs steeply with
 capacity. **At hidden 16 going deterministic actively loses 7.5 points** — the policy is too
