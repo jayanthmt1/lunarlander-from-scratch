@@ -1256,7 +1256,8 @@ function updateFooter() {
 }
 
 $('b-play').addEventListener('click', () => {
-  playing = !playing; $('b-play').textContent = playing ? 'Pause' : 'Resume';
+  playing = !playing; autoPaused = false; noteInteraction();
+  $('b-play').textContent = playing ? 'Pause' : 'Resume';
   $('b-play').classList.toggle('on', playing);
 });
 $('speed').addEventListener('click', e => {
@@ -1347,14 +1348,34 @@ function updateHUD() {
     $('s-mix').textContent = `${l} landed · ${cr} crashed · ${hv} hovered out`;
   }
   $('wlab').textContent = watchBest ? 'best policy so far' : `episode ${T.episode.toLocaleString()}`;
-  $('status').textContent = watchBest ? 'Replaying best' : (playing ? 'Training' : 'Paused');
+  $('status').textContent = watchBest ? 'Replaying best'
+    : playing ? 'Training'
+    : autoPaused ? 'Auto-paused \u2014 ' + autoPaused + ', press resume' : 'Paused';
   $('clab').textContent = T.bestReturn > -Infinity ? `best single episode ${fmtS(T.bestReturn)}` : '+200 = solved';
 }
+
+/* ---------- idle auto-pause ----------------------------------------------
+ * Training pins a CPU core indefinitely. Nobody wants a background tab
+ * heating their laptop, so stop on our own after a few minutes untouched. */
+const IDLE_MS = 5 * 60 * 1000;
+let lastInteract = performance.now(), autoPaused = false;
+function noteInteraction() { lastInteract = performance.now(); }
+for (const ev of ['pointerdown', 'keydown', 'wheel', 'touchstart'])
+  window.addEventListener(ev, noteInteraction, { passive: true });
+function autoPause(why) {
+  if (!playing) return;
+  playing = false; autoPaused = why;
+  $('b-play').textContent = 'Resume'; $('b-play').classList.remove('on');
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) autoPause('tab hidden');
+});
 
 /* ---------- driver ---------- */
 let last = performance.now(), acc = 0, frame = 0;
 function loop(now) {
   const dt = Math.min(100, now - last); last = now;
+  if (playing && now - lastInteract > IDLE_MS) autoPause('idle');
   if (playing) {
     if (watchBest) {
       wAcc += dt * 0.05;                       // 50 Hz
