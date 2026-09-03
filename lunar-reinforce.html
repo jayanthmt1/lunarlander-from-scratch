@@ -86,6 +86,9 @@ button.on{background:var(--ice);color:#04211d;border-color:var(--ice);font-weigh
 /* ---------- drawer ---------- */
 .drawer{border:1px solid var(--line);border-radius:3px;margin-top:14px;background:var(--panel)}
 .drawer[hidden]{display:none}
+.presets{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:11px 13px;border-bottom:1px solid var(--line)}
+.plab{font-family:var(--mono);font-size:9.5px;letter-spacing:.19em;text-transform:uppercase;color:var(--dim)}
+.evalout{font-family:var(--mono);font-size:11px;color:var(--ice);letter-spacing:.06em;font-variant-numeric:tabular-nums}
 .dgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:1px;background:var(--line)}
 .f{background:var(--panel);padding:11px 13px}
 .f label{font-family:var(--mono);font-size:9.5px;letter-spacing:.17em;text-transform:uppercase;
@@ -150,7 +153,9 @@ footer div+div{margin-top:4px}
     <button data-sp="fast" class="on">Fast</button>
     <button data-sp="turbo">Turbo</button>
   </div>
-  <button id="b-best">★ Watch best</button>
+  <button id="b-best">★ Watch greedy</button>
+  <button id="b-eval">✓ Evaluate</button>
+  <span class="evalout" id="evalout"></span>
   <span class="spacer"></span>
   <button id="b-params">⚙ Parameters</button>
   <button id="b-reseed">🎲 Reseed</button>
@@ -158,6 +163,11 @@ footer div+div{margin-top:4px}
 </div>
 
 <div class="drawer" id="drawer" hidden>
+  <div class="presets">
+    <span class="plab">Preset</span>
+    <button id="p-faithful" class="on">Faithful — 212 weights, hovers</button>
+    <button id="p-solve">Solve — 836 weights, ~99% landing</button>
+  </div>
   <div class="dgrid" id="dgrid"></div>
   <div class="dnote">Learning rate, discount, batch, entropy and leg strength apply immediately. Hidden width and seed restart training. <b>Orange</b> fields are deviations from stock LunarLander.</div>
 </div>
@@ -525,6 +535,14 @@ class PolicyNet {
     return p;
   }
 
+  // Deployment picks the argmax; sampling exists for exploration during training.
+  // The gap is large and capacity-dependent: at hidden 16 going greedy LOSES
+  // accuracy, at hidden 64 it gains ~11 points.
+  greedy() {
+    let b = 0;
+    for (let j = 1; j < NOUT; j++) if (this.p[j] > this.p[b]) b = j;
+    return b;
+  }
   sample(rng) {
     const u = rng.next(); let acc = 0;
     for (let j = 0; j < NOUT; j++) { acc += this.p[j]; if (u < acc) return j; }
@@ -725,6 +743,37 @@ class GhostBuffer {
     this.n = ep + 1;
   }
 }
+
+// Evaluate a policy on fresh episodes. Greedy by default: this is the number
+// that describes a deployed controller, not the exploration-noisy training rate.
+function evaluatePolicy(pol, cfg, n, seed, greedy) {
+  if (greedy === undefined) greedy = true;
+  let land = 0, crash = 0, trunc = 0, sum = 0;
+  for (let e = 0; e < n; e++) {
+    const rng = new RNG((seed * 7919 + e * 104729) >>> 0);
+    const env = new LunarEnv(rng, cfg);
+    let s = env.observe(), R = 0, done = false;
+    for (let t = 0; t < 1000 && !done; t++) {
+      pol.forward(s);
+      const a = greedy ? pol.greedy() : pol.sample(rng);
+      const r = env.step(a);
+      s = r.obs; R += r.rawReward;
+      if (r.terminated) { done = true; if (r.outcome === 1) land++; else crash++; }
+    }
+    if (!done) trunc++;
+    sum += R;
+  }
+  return { land: 100 * land / n, crash: 100 * crash / n, trunc: 100 * trunc / n, mean: sum / n, n };
+}
+
+// Presets. FAITHFUL reproduces the hovering plateau (the default story);
+// SOLVE is tuned for landing accuracy and is a different, larger network.
+const PRESETS = {
+  faithful: { hidden: 16, entropy0: 0.02, entropyHalfLife: 2000, entropyMin: 0.001,
+              lrPolicy: 2e-3, lrValue: 5e-3, batch: 8, gamma: 0.995 },
+  solve:    { hidden: 64, entropy0: 0, entropyHalfLife: 2000, entropyMin: 0,
+              lrPolicy: 4e-3, lrValue: 5e-3, batch: 8, gamma: 0.995 },
+};
 
 class Trainer {
   constructor(cfg) {
@@ -1265,6 +1314,15 @@ $('speed').addEventListener('click', e => {
   speed = b.dataset.sp;
   for (const x of $('speed').children) x.classList.toggle('on', x === b);
 });
+$('b-eval').addEventListener('click', () => {
+  const n = 200, out = $('evalout');
+  out.textContent = 'evaluating…';
+  // let the label paint before the synchronous run
+  setTimeout(() => {
+    const g = evaluatePolicy(T.pol, T.cfg, n, T.cfg.seed, true);
+    out.textContent = `greedy ${g.land.toFixed(1)}% landed · mean ${g.mean >= 0 ? '+' : ''}${g.mean.toFixed(0)} · ${n} fresh episodes`;
+  }, 16);
+});
 $('b-params').addEventListener('click', () => {
   const d = $('drawer'); d.hidden = !d.hidden; $('b-params').classList.toggle('on', !d.hidden);
 });
@@ -1274,7 +1332,6 @@ $('b-reseed').addEventListener('click', () => {
   T = new Trainer(c); watchBest = false; $('b-best').classList.remove('on'); syncAll();
 });
 $('b-best').addEventListener('click', () => {
-  if (!T.bestWeights && !usableSaved()) return;
   watchBest = !watchBest; $('b-best').classList.toggle('on', watchBest);
   if (watchBest) startWatch(); else wEnv = null;
 });
@@ -1284,8 +1341,11 @@ let wAct = 0, wP = new Float64Array(NOUT), wRng = null;
 function startWatch() {
   wRng = new RNG((Math.random() * 1e9) | 0);
   wPol = new PolicyNet(T.cfg.hidden, new RNG(1));
+  // Prefer the live policy once training has started; fall back to a saved one
+  // so a freshly-loaded page can still show something.
   const sv = usableSaved();
-  const src = T.bestWeights || (sv ? sv.w.map(a => Float64Array.from(a)) : null);
+  const src = T.episode > 0 ? T.pol.tensors()
+            : (sv ? sv.w.map(a => Float64Array.from(a)) : T.bestWeights);
   if (!src) { watchBest = false; return; }
   const dst = wPol.tensors();
   for (let i = 0; i < dst.length; i++) dst[i].set(src[i]);
@@ -1295,7 +1355,7 @@ function startWatch() {
 function watchStep() {
   if (!wEnv) return;
   wPol.forward(wObs); for (let i = 0; i < NOUT; i++) wP[i] = wPol.p[i];
-  wAct = wPol.sample(wRng);
+  wAct = wPol.greedy();          // deployed policy: argmax, no exploration noise
   const r = wEnv.step(wAct);
   wObs = r.obs; wR += r.rawReward; wT++;
   if (r.terminated || wT >= 1000) { wOutcome = r.terminated ? r.outcome : 2; startWatch(); }
@@ -1391,7 +1451,8 @@ function loop(now) {
   }
   frame++;
   maybeSaveBest();
-  $('b-best').disabled = !T.bestWeights && !usableSaved();
+  // nothing to replay until at least one episode exists (or a saved policy does)
+  $('b-best').disabled = T.episode === 0 && !usableSaved();
   const heavy = speed === 'turbo' && !watchBest;
   drawWorld();
   if (!heavy || frame % 3 === 0) drawNet();
@@ -1399,5 +1460,16 @@ function loop(now) {
   updateHUD();
   requestAnimationFrame(loop);
 }
+function applyPreset(name) {
+  T = new Trainer(Object.assign({}, PRESETS[name], { seed: T.cfg.seed }));
+  watchBest = false; $('b-best').classList.remove('on');
+  $('evalout').textContent = '';
+  $('p-faithful').classList.toggle('on', name === 'faithful');
+  $('p-solve').classList.toggle('on', name === 'solve');
+  buildDrawer(); syncAll();
+}
+$('p-faithful').addEventListener('click', () => applyPreset('faithful'));
+$('p-solve').addEventListener('click', () => applyPreset('solve'));
+
 buildDrawer(); updateFooter(); requestAnimationFrame(loop);
 </script>

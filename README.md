@@ -45,6 +45,62 @@ and −0.0143 at first pad contact (expected −0.0142).
 central finite difference. Worst relative error **6.7e-9** against a 1e-4 threshold,
 including the entropy term `∂H/∂z = −p(lp + H)`.
 
+## Presets
+
+| preset | network | what it does |
+|---|---|---|
+| **Faithful** *(default)* | 8-16-4, **212 weights** | reproduces the hovering plateau — the story the page tells |
+| **Solve** | 8-64-4, **836 weights** | **99.3-99.6% landing**, mean return ~+268 |
+
+`Solve` is `entropy0 = 0`, `lrPolicy = 4e-3`, hidden 64. It is a *different, larger*
+network — the "212 weights" headline belongs to the faithful default only.
+
+## Landing accuracy: sampled vs greedy
+
+Training samples actions from the softmax because exploration needs randomness. A deployed
+controller takes the `argmax`. The gap between those two is large, and it depends on capacity
+in a way that inverts the usual intuition:
+
+| hidden | params | sampled | **greedy** | greedy mean |
+|---|---|---|---|---|
+| 16 | 212 | 92.0% | **84.5%** | +203 |
+| 16 | 212 | 87.7% | 93.1% | +233 |
+| 32 | 420 | 91.3% | 97.2% | +256 |
+| 32 | 420 | 91.0% | 92.7% | +235 |
+| 64 | 836 | 88.0% | **99.3%** | +268 |
+| 64 | 836 | 92.7% | **99.4%** | +266 |
+
+*(1,000 fresh evaluation episodes each, after 30k training episodes)*
+
+Sampled accuracy is flat across every width (~88-92%). Greedy accuracy climbs steeply with
+capacity. **At hidden 16 going deterministic actively loses 7.5 points** — the policy is too
+soft to run without noise, and sampling occasionally rescues states it handles badly. The extra
+weights do not buy a better stochastic policy; they buy one sharp enough to deploy.
+
+This is why capacity looked irrelevant in training-rate measurements: those measure the wrong
+quantity for a deployed controller.
+
+**The residual ~0.5% is irreducible.** Of 6 failures in 1,000, the initial velocities sit at the
+very top of the achievable range (median `|vx0|` 0.680, p90 0.786, hard max 0.806) — spawns
+thrown groundward at ~3.4 m/s by the `INITIAL_RANDOM` impulse. That is the task's own tail.
+
+## Hyperparameter tuning
+
+25,000 episodes, 3 seeds, escape = first 500-episode window above 50% landing:
+
+| config | escape | landing | mean | AUC |
+|---|---|---|---|---|
+| **beta=0 + lr 4e-3** | **6,667** | 90% | **+251** | **196** |
+| beta=0 + batch16 + lr4e-3 | 9,667 | 91% | +251 | 173 |
+| beta=0 | 10,500 | 91% | +250 | 159 |
+| HL=500 | 13,000 | 88% | +245 | 150 |
+| baseline (HL=2000) | 14,167 | 88% | +244 | 145 |
+| beta=0 + batch 16 | 17,167 | 88% | +240 | 106 |
+
+Two results worth noting: removing the entropy bonus entirely beats every decay schedule, and
+**larger batches make this worse, not better** (batch 16 pushed escape from 10.5k to 17.2k) —
+the opposite of the usual variance-reduction advice.
+
 ## Findings
 
 **The 212-weight net does solve LunarLander — it just takes a long time.** It sits at 0%

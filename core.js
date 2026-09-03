@@ -347,6 +347,14 @@ class PolicyNet {
     return p;
   }
 
+  // Deployment picks the argmax; sampling exists for exploration during training.
+  // The gap is large and capacity-dependent: at hidden 16 going greedy LOSES
+  // accuracy, at hidden 64 it gains ~11 points.
+  greedy() {
+    let b = 0;
+    for (let j = 1; j < NOUT; j++) if (this.p[j] > this.p[b]) b = j;
+    return b;
+  }
   sample(rng) {
     const u = rng.next(); let acc = 0;
     for (let j = 0; j < NOUT; j++) { acc += this.p[j]; if (u < acc) return j; }
@@ -548,6 +556,37 @@ class GhostBuffer {
   }
 }
 
+// Evaluate a policy on fresh episodes. Greedy by default: this is the number
+// that describes a deployed controller, not the exploration-noisy training rate.
+function evaluatePolicy(pol, cfg, n, seed, greedy) {
+  if (greedy === undefined) greedy = true;
+  let land = 0, crash = 0, trunc = 0, sum = 0;
+  for (let e = 0; e < n; e++) {
+    const rng = new RNG((seed * 7919 + e * 104729) >>> 0);
+    const env = new LunarEnv(rng, cfg);
+    let s = env.observe(), R = 0, done = false;
+    for (let t = 0; t < 1000 && !done; t++) {
+      pol.forward(s);
+      const a = greedy ? pol.greedy() : pol.sample(rng);
+      const r = env.step(a);
+      s = r.obs; R += r.rawReward;
+      if (r.terminated) { done = true; if (r.outcome === 1) land++; else crash++; }
+    }
+    if (!done) trunc++;
+    sum += R;
+  }
+  return { land: 100 * land / n, crash: 100 * crash / n, trunc: 100 * trunc / n, mean: sum / n, n };
+}
+
+// Presets. FAITHFUL reproduces the hovering plateau (the default story);
+// SOLVE is tuned for landing accuracy and is a different, larger network.
+const PRESETS = {
+  faithful: { hidden: 16, entropy0: 0.02, entropyHalfLife: 2000, entropyMin: 0.001,
+              lrPolicy: 2e-3, lrValue: 5e-3, batch: 8, gamma: 0.995 },
+  solve:    { hidden: 64, entropy0: 0, entropyHalfLife: 2000, entropyMin: 0,
+              lrPolicy: 4e-3, lrValue: 5e-3, batch: 8, gamma: 0.995 },
+};
+
 class Trainer {
   constructor(cfg) {
     this.cfg = Object.assign({}, DEFAULTS, cfg || {});
@@ -716,5 +755,5 @@ if (typeof module !== 'undefined') module.exports = {
   RNG, mulberry32, LunarEnv, PolicyNet, ValueNet, Adam,
   SCALE, FPS, DT, W, H, HELIPAD_Y, OBS_Y_REF, LANDER_POLY, CHUNKS,
   MASS, INERTIA, COM_OFF, legFootLocal, PHI_MIN, PHI_MAX, NIN, NOUT,
-  Trainer, GhostBuffer, CurveHistory, HIST_BINS, DEFAULTS, maxStepsFor, GHOST_SLOTS, GHOST_PTS, CURVE_CAP,
+  Trainer, evaluatePolicy, PRESETS, GhostBuffer, CurveHistory, HIST_BINS, DEFAULTS, maxStepsFor, GHOST_SLOTS, GHOST_PTS, CURVE_CAP,
 };
