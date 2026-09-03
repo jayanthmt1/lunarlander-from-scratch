@@ -578,6 +578,55 @@ function evaluatePolicy(pol, cfg, n, seed, greedy) {
   return { land: 100 * land / n, crash: 100 * crash / n, trunc: 100 * trunc / n, mean: sum / n, n };
 }
 
+// Resumable greedy evaluator. Runs episodes in slices so a 200-episode screen
+// (~50ms in one shot) never blocks a frame.
+class Evaluator {
+  constructor() { this.active = false; this.result = null; this.pol = null; }
+  // weights: array of Float64Array matching PolicyNet.tensors()
+  start(weights, cfg, n, seedBase, tag) {
+    this.pol = new PolicyNet(cfg.hidden, new RNG(1));
+    const dst = this.pol.tensors();
+    for (let i = 0; i < dst.length; i++) dst[i].set(weights[i]);
+    this.cfg = cfg; this.n = n; this.seedBase = seedBase; this.tag = tag;
+    this.i = 0; this.onpad = 0; this.crash = 0; this.trunc = 0; this.sum = 0;
+    this.active = true; this.result = null;
+  }
+  weights() { return this.pol.tensors().map(a => Float64Array.from(a)); }
+  // returns true when the whole evaluation is finished
+  tick(budgetMs) {
+    const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    const t0 = now();
+    while (this.i < this.n) {
+      const rng = new RNG((this.seedBase + this.i * 7919) >>> 0);
+      const env = new LunarEnv(rng, this.cfg);
+      let s = env.observe(), R = 0, done = false;
+      for (let t = 0; t < 1000 && !done; t++) {
+        this.pol.forward(s);
+        const r = env.step(this.pol.greedy());
+        s = r.obs; R += r.rawReward;
+        if (r.terminated) {
+          done = true;
+          if (r.outcome === 1) {
+            const x = env.origin()[0];
+            // "landed" must mean between the flags, not merely come to rest
+            if (x >= env.helipadX1 && x <= env.helipadX2) this.onpad++;
+          } else this.crash++;
+        }
+      }
+      if (!done) this.trunc++;
+      this.sum += R; this.i++;
+      if (now() - t0 > budgetMs) return false;
+    }
+    this.active = false;
+    this.result = {
+      land: 100 * this.onpad / this.n, crash: 100 * this.crash / this.n,
+      trunc: 100 * this.trunc / this.n, mean: this.sum / this.n, n: this.n, tag: this.tag,
+    };
+    return true;
+  }
+  get progress() { return this.n ? this.i / this.n : 0; }
+}
+
 // Presets. FAITHFUL reproduces the hovering plateau (the default story);
 // SOLVE is tuned for landing accuracy and is a different, larger network.
 const PRESETS = {
@@ -755,5 +804,5 @@ if (typeof module !== 'undefined') module.exports = {
   RNG, mulberry32, LunarEnv, PolicyNet, ValueNet, Adam,
   SCALE, FPS, DT, W, H, HELIPAD_Y, OBS_Y_REF, LANDER_POLY, CHUNKS,
   MASS, INERTIA, COM_OFF, legFootLocal, PHI_MIN, PHI_MAX, NIN, NOUT,
-  Trainer, evaluatePolicy, PRESETS, GhostBuffer, CurveHistory, HIST_BINS, DEFAULTS, maxStepsFor, GHOST_SLOTS, GHOST_PTS, CURVE_CAP,
+  Trainer, evaluatePolicy, Evaluator, PRESETS, GhostBuffer, CurveHistory, HIST_BINS, DEFAULTS, maxStepsFor, GHOST_SLOTS, GHOST_PTS, CURVE_CAP,
 };

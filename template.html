@@ -89,6 +89,7 @@ button.on{background:var(--ice);color:#04211d;border-color:var(--ice);font-weigh
 .presets{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:11px 13px;border-bottom:1px solid var(--line)}
 .plab{font-family:var(--mono);font-size:9.5px;letter-spacing:.19em;text-transform:uppercase;color:var(--dim)}
 .evalout{font-family:var(--mono);font-size:11px;color:var(--ice);letter-spacing:.06em;font-variant-numeric:tabular-nums}
+.bestout{font-family:var(--mono);font-size:11px;color:var(--solved);letter-spacing:.06em;font-variant-numeric:tabular-nums}
 .dgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:1px;background:var(--line)}
 .f{background:var(--panel);padding:11px 13px}
 .f label{font-family:var(--mono);font-size:9.5px;letter-spacing:.17em;text-transform:uppercase;
@@ -156,6 +157,7 @@ footer div+div{margin-top:4px}
   <button id="b-best">★ Watch greedy</button>
   <button id="b-eval">✓ Evaluate</button>
   <span class="evalout" id="evalout"></span>
+  <span class="bestout" id="bestout"></span>
   <span class="spacer"></span>
   <button id="b-params">⚙ Parameters</button>
   <button id="b-reseed">🎲 Reseed</button>
@@ -529,7 +531,7 @@ function buildDrawer() {
     if (f.restart) inp.addEventListener('change', () => {
       const c = Object.assign({}, T.cfg); c[f.k] = +inp.value;
       T = new Trainer(c); watchBest = false;
-      $('b-best').classList.remove('on'); syncAll();
+      $('b-best').classList.remove('on'); resetSnapshots(); syncAll();
     });
     f._sync = sync; sync();
   }
@@ -571,17 +573,21 @@ $('b-eval').addEventListener('click', () => {
   out.textContent = 'evaluating…';
   // let the label paint before the synchronous run
   setTimeout(() => {
-    const g = evaluatePolicy(T.pol, T.cfg, n, T.cfg.seed, true);
+    const bw = bestWeights();
+    let pol = T.pol;
+    if (bw) { pol = new PolicyNet(T.cfg.hidden, new RNG(1));
+              pol.tensors().forEach((d, i) => d.set(bw[i])); }
+    const g = evaluatePolicy(pol, T.cfg, n, T.cfg.seed, true);
     out.textContent = `greedy ${g.land.toFixed(1)}% landed · mean ${g.mean >= 0 ? '+' : ''}${g.mean.toFixed(0)} · ${n} fresh episodes`;
   }, 16);
 });
 $('b-params').addEventListener('click', () => {
   const d = $('drawer'); d.hidden = !d.hidden; $('b-params').classList.toggle('on', !d.hidden);
 });
-$('b-reset').addEventListener('click', () => { T = new Trainer(Object.assign({}, T.cfg)); watchBest = false; $('b-best').classList.remove('on'); syncAll(); });
+$('b-reset').addEventListener('click', () => { T = new Trainer(Object.assign({}, T.cfg)); watchBest = false; $('b-best').classList.remove('on'); resetSnapshots(); syncAll(); });
 $('b-reseed').addEventListener('click', () => {
   const c = Object.assign({}, T.cfg); c.seed = (Math.random() * 1e9) | 0;
-  T = new Trainer(c); watchBest = false; $('b-best').classList.remove('on'); syncAll();
+  T = new Trainer(c); watchBest = false; $('b-best').classList.remove('on'); resetSnapshots(); syncAll();
 });
 $('b-best').addEventListener('click', () => {
   watchBest = !watchBest; $('b-best').classList.toggle('on', watchBest);
@@ -595,9 +601,7 @@ function startWatch() {
   wPol = new PolicyNet(T.cfg.hidden, new RNG(1));
   // Prefer the live policy once training has started; fall back to a saved one
   // so a freshly-loaded page can still show something.
-  const sv = usableSaved();
-  const src = T.episode > 0 ? T.pol.tensors()
-            : (sv ? sv.w.map(a => Float64Array.from(a)) : T.bestWeights);
+  const src = bestWeights() || (T.episode > 0 ? T.pol.tensors() : null);
   if (!src) { watchBest = false; return; }
   const dst = wPol.tensors();
   for (let i = 0; i < dst.length; i++) dst[i].set(src[i]);
@@ -613,31 +617,81 @@ function watchStep() {
   if (r.terminated || wT >= 1000) { wOutcome = r.terminated ? r.outcome : 2; startWatch(); }
 }
 
-/* ---------- saved best policy (survives reload) ---------- */
+/* ---------- automatic best-policy snapshots -------------------------------
+ * Greedy accuracy oscillates over training rather than converging, so the
+ * final policy is usually not the best one. Periodically evaluate and keep
+ * the best.
+ *
+ * Two stages, because naive "evaluate and keep the best" chases noise:
+ *   SCREEN  — a small run on a FIXED episode set. Same episodes every time,
+ *             so comparing checkpoints is paired and low-variance.
+ *   CONFIRM — only if the screen beats the incumbent, a larger run on
+ *             DIFFERENT seeds. That number is what gets reported, so the
+ *             headline figure never comes from the sample used to select.
+ */
+const EVAL_EVERY = 2000, SCREEN_N = 200, CONFIRM_N = 600;
+const SCREEN_SEED = 12345, CONFIRM_SEED = 777001;
+const evaluator = new Evaluator();
+let bestSnap = null;          // {w, hidden, land, mean, ep}
+let screenBest = -1, evalStage = null, nextEvalAt = EVAL_EVERY;
+
 const LS_KEY = 'not-crashing-comes-first/best';
-let lastSave = 0, savedBest = null;
+let lastSave = 0, savedSnap = null;
 try {
   const raw = localStorage.getItem(LS_KEY);
-  if (raw) { const o = JSON.parse(raw); if (o && o.w && o.w.length === 4) savedBest = o; }
-} catch (e) { savedBest = null; }
-function maybeSaveBest() {
-  if (!T.bestWeights || watchBest) return;
+  if (raw) { const o = JSON.parse(raw); if (o && o.w && o.w.length === 4) savedSnap = o; }
+} catch (e) { savedSnap = null; }
+function usableSaved() { return savedSnap && savedSnap.hidden === T.cfg.hidden ? savedSnap : null; }
+
+function resetSnapshots() {
+  bestSnap = null; screenBest = -1; evalStage = null;
+  nextEvalAt = EVAL_EVERY;
+  if (evaluator) evaluator.active = false;
+  $('bestout').textContent = ''; $('evalout').textContent = '';
+}
+function saveSnap() {
+  if (!bestSnap) return;
   const now = performance.now();
   if (now - lastSave < 4000) return;
   lastSave = now;
   try {
     localStorage.setItem(LS_KEY, JSON.stringify({
-      h: T.cfg.hidden, r: T.bestReturn, ep: T.episode,
-      w: T.bestWeights.map(a => Array.from(a)),
+      hidden: bestSnap.hidden, land: bestSnap.land, mean: bestSnap.mean, ep: bestSnap.ep,
+      w: bestSnap.w.map(a => Array.from(a)),
     }));
-  } catch (e) { /* private window, quota, or a context that blocks storage */ }
+  } catch (e) { /* private window, quota, or storage blocked */ }
 }
-// Only reusable when the architecture matches the net currently on screen.
-function usableSaved() {
-  return savedBest && savedBest.h === T.cfg.hidden ? savedBest : null;
+function showBest() {
+  const b = bestSnap || usableSaved();
+  $('bestout').textContent = b
+    ? `\u2605 best ${b.land.toFixed(1)}% landing \u00b7 mean ${b.mean >= 0 ? '+' : ''}${b.mean.toFixed(0)} \u00b7 ep ${(+b.ep).toLocaleString()}`
+    : '';
+}
+function bestWeights() {
+  const b = bestSnap || usableSaved();
+  if (!b) return null;
+  return b.w.map(a => (a instanceof Float64Array ? a : Float64Array.from(a)));
+}
+function onEvalDone() {
+  const r = evaluator.result;
+  if (evalStage === 'screen') {
+    if (r.land > screenBest) {
+      screenBest = r.land;
+      evalStage = 'confirm';
+      evaluator.start(evaluator.weights(), T.cfg, CONFIRM_N, CONFIRM_SEED, r.tag);
+    } else evalStage = null;
+  } else {
+    // confirmed on episodes the screen never saw
+    if (!bestSnap || r.land > bestSnap.land) {
+      bestSnap = { w: evaluator.weights(), hidden: T.cfg.hidden,
+                   land: r.land, mean: r.mean, ep: r.tag };
+      showBest();
+    }
+    evalStage = null;
+  }
 }
 
-/* ---------- HUD ---------- */
+/* ---------- HUD ---------- *//* ---------- HUD ---------- */
 const fmtS = v => (v >= 0 ? '+' : '') + v.toFixed(0);
 function updateHUD() {
   const g = T.ghost, n = g.n;
@@ -702,9 +756,18 @@ function loop(now) {
     }
   }
   frame++;
-  maybeSaveBest();
+  // periodic screen/confirm evaluation, sharing the frame budget with training
+  if (playing && !watchBest) {
+    if (!evaluator.active && T.episode >= nextEvalAt) {
+      nextEvalAt = T.episode + EVAL_EVERY;
+      evalStage = 'screen';
+      evaluator.start(T.pol.tensors(), T.cfg, SCREEN_N, SCREEN_SEED, T.episode);
+    }
+    if (evaluator.active && evaluator.tick(3)) onEvalDone();
+  }
+  saveSnap();
   // nothing to replay until at least one episode exists (or a saved policy does)
-  $('b-best').disabled = T.episode === 0 && !usableSaved();
+  $('b-best').disabled = T.episode === 0 && !bestWeights();
   const heavy = speed === 'turbo' && !watchBest;
   drawWorld();
   if (!heavy || frame % 3 === 0) drawNet();
@@ -715,7 +778,7 @@ function loop(now) {
 function applyPreset(name) {
   T = new Trainer(Object.assign({}, PRESETS[name], { seed: T.cfg.seed }));
   watchBest = false; $('b-best').classList.remove('on');
-  $('evalout').textContent = '';
+  resetSnapshots();
   $('p-faithful').classList.toggle('on', name === 'faithful');
   $('p-solve').classList.toggle('on', name === 'solve');
   buildDrawer(); syncAll();
@@ -723,5 +786,5 @@ function applyPreset(name) {
 $('p-faithful').addEventListener('click', () => applyPreset('faithful'));
 $('p-solve').addEventListener('click', () => applyPreset('solve'));
 
-buildDrawer(); updateFooter(); requestAnimationFrame(loop);
+buildDrawer(); updateFooter(); showBest(); requestAnimationFrame(loop);
 </script>

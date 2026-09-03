@@ -55,6 +55,28 @@ including the entropy term `∂H/∂z = −p(lp + H)`.
 `Solve` is `entropy0 = 0`, `lrPolicy = 4e-3`, hidden 64. It is a *different, larger*
 network — the "212 weights" headline belongs to the faithful default only.
 
+## Automatic best-policy snapshots
+
+Because greedy accuracy oscillates rather than converging, the final policy is usually not the
+best one the run produced. The page evaluates itself every 2,000 episodes and keeps the best.
+
+Naive "evaluate and keep the best" would chase noise — selecting the best of eight checkpoints
+on a 1,500-episode sample gave 99.13%, which fell to 98.35% on fresh episodes. So it runs in
+two stages:
+
+| stage | episodes | seeds | purpose |
+|---|---|---|---|
+| **screen** | 200 | **fixed** set, every time | ranking. Paired comparison against the same episodes is far lower variance than independent samples |
+| **confirm** | 600 | **different** seeds | reporting. Only runs if the screen beats the incumbent, and this is the number displayed |
+
+The headline figure therefore never comes from the sample used to select. Evaluation is sliced
+across frames (verified byte-identical to running it in one shot) so a 200-episode screen never
+blocks a frame, and `★ Watch greedy`, `✓ Evaluate` and the saved policy all use the snapshot
+rather than the live weights.
+
+Observed on one run: promotions at 70% → 92% → 96.2% → 97.7%, after which later checkpoints were
+evaluated and *rejected* — the snapshot held while the live policy drifted.
+
 ## Landing accuracy: sampled vs greedy
 
 Training samples actions from the softmax because exploration needs randomness. A deployed
